@@ -13,6 +13,21 @@ router.get('/', (req, res) => {
     }
 });
 
+// ✅ โค้ดส่วนที่ต้องมีเพื่อให้ปุ่ม "บันทึกการแก้ไข" ทำงาน
+router.patch('/:id', (req, res) => {
+    try {
+        const { id } = req.params;
+        const { content, image_data } = req.body;
+        
+        const stmt = db.prepare("UPDATE posts SET content = ?, image_data = ? WHERE id = ?");
+        stmt.run(content, image_data, id);
+        
+        res.json({ success: true, message: "Updated successfully" });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
 // ลบโพสต์
 router.delete('/:id', (req, res) => {
     try {
@@ -23,5 +38,4 @@ router.delete('/:id', (req, res) => {
     }
 });
 
-// สำคัญที่สุด: ต้องมีบรรทัดนี้เพื่อให้ server.js มองเห็นเส้นทางข้างบน
 module.exports = router;
