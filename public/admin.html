@@ -1,0 +1,502 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Siwara Café Admin - Unified Control</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Kanit:wght@300;400;600&display=swap');
+        body { font-family: 'Kanit', sans-serif; }
+        .gem-active { border-color: #2563eb; background-color: #eff6ff; }
+        .animate-fadeIn { animation: fadeIn 0.3s ease-out forwards; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        .custom-scrollbar::-webkit-scrollbar { width: 5px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: #f1f1f1; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
+    </style>
+</head>
+<body class="bg-slate-50 min-h-screen text-slate-900">
+    <div class="max-w-[1600px] mx-auto p-4 md:p-8">
+        <!-- Connection Warning Banner -->
+        <div id="connectionWarning" class="hidden mb-6 p-5 bg-white border-l-4 border-amber-500 rounded-r-2xl shadow-sm animate-fadeIn">
+            <div class="flex gap-4 items-start">
+                <div class="text-3xl">⚠️</div>
+                <div class="text-sm flex-1">
+                    <p class="font-bold text-slate-800 text-base">ไม่สามารถเชื่อมต่อกับเซิร์ฟเวอร์ได้ (SERVER DISCONNECTED)</p>
+                    <p class="text-slate-600 mt-1">ระบบไม่สามารถดึงข้อมูลได้ โปรดตรวจสอบว่าคุณได้รัน 'node server.js' ใน Terminal แล้ว</p>
+                    
+                    <div class="mt-3 bg-slate-900 text-amber-400 p-3 rounded-lg font-mono text-[10px] overflow-x-auto">
+                        <p class="font-bold border-b border-slate-700 pb-1 mb-1 text-slate-400 uppercase">Debug Info:</p>
+                        <div id="debugError">Checking...</div>
+                    </div>
+
+                    <div class="mt-4 flex flex-wrap gap-2">
+                        <button onclick="window.location.reload()" class="bg-amber-600 text-white px-4 py-2 rounded-xl text-xs font-bold hover:bg-amber-700 transition">Refresh หน้าจอ</button>
+                        <a href="http://localhost:3000" target="_blank" class="bg-slate-200 text-slate-700 px-4 py-2 rounded-xl text-xs font-bold hover:bg-slate-300 transition">ตรวจสอบ http://localhost:3000</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Header -->
+        <header class="mb-8 flex flex-col md:flex-row justify-between items-start md:items-end gap-4">
+            <div>
+                <h1 class="text-4xl font-black text-slate-800 tracking-tight flex items-center gap-3">
+                    SIWARA <span class="text-blue-600 bg-blue-50 px-3 py-1 rounded-2xl text-2xl uppercase">Admin</span>
+                </h1>
+                <p class="text-slate-500 font-medium mt-2">ศูนย์ควบคุมระบบ AI และการจัดการคอนเทนต์แบบครบวงจร</p>
+            </div>
+            <div class="flex flex-wrap gap-3">
+                <a id="fbPageLink" href="#" target="_blank" class="hidden px-4 py-2 rounded-2xl bg-blue-600 text-white shadow-lg shadow-blue-100 text-[10px] font-bold flex items-center gap-2 hover:bg-blue-700 transition">
+                    <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/></svg>
+                    <span>เปิดหน้าเพจ Facebook</span>
+                </a>
+                <div id="fbStatusTag" class="px-4 py-2 rounded-2xl bg-white border border-slate-200 shadow-sm text-[10px] font-bold flex items-center gap-2">
+                    <span id="fbDot" class="w-2 h-2 rounded-full bg-slate-300"></span>
+                    <span id="fbText" class="uppercase tracking-widest text-slate-400">FB Status: checking...</span>
+                </div>
+                <div id="connectionTag" class="px-4 py-2 rounded-2xl bg-white border border-slate-200 shadow-sm text-[10px] font-bold flex items-center gap-2">
+                    <span id="statusDot" class="w-2 h-2 rounded-full bg-slate-300"></span>
+                    <span id="statusText" class="uppercase tracking-widest text-slate-400">Server: checking...</span>
+                </div>
+            </div>
+        </header>
+
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-8">
+            <!-- Left Sidebar: Identity Gems -->
+            <div class="lg:col-span-3 space-y-6">
+                <section class="bg-white p-6 rounded-[2.5rem] shadow-sm border border-slate-100 sticky top-8">
+                    <div class="flex justify-between items-center mb-6 px-2">
+                        <h2 class="text-lg font-bold text-slate-800 flex items-center gap-2">
+                            <span>💎</span> Identity Gems
+                        </h2>
+                        <button type="button" onclick="openGemModal()" class="bg-blue-600 text-white p-2 rounded-xl hover:bg-blue-700 transition shadow-lg shadow-blue-100">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+                        </button>
+                    </div>
+                    <div id="gemList" class="space-y-4 max-h-[70vh] overflow-y-auto pr-2 custom-scrollbar text-center text-xs text-slate-400">
+                        กำลังดึงข้อมูล Gems...
+                    </div>
+                </section>
+            </div>
+
+            <!-- Right Main Area -->
+            <div class="lg:col-span-9 space-y-8">
+                <!-- AI Command Center -->
+                <section class="bg-white p-8 rounded-[2.5rem] shadow-sm border border-slate-100">
+                    <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
+                        <div class="flex items-center gap-4">
+                            <div class="w-14 h-14 bg-blue-600 rounded-[1.25rem] flex items-center justify-center text-white shadow-xl shadow-blue-200">
+                                <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+                            </div>
+                            <div>
+                                <h2 class="text-xl font-bold text-slate-800 leading-tight">AI Command Center</h2>
+                                <p id="currentGemIndicator" class="text-sm text-slate-400 font-medium">โปรดเลือกตัวตน (Gem) ที่แถบด้านซ้าย</p>
+                            </div>
+                        </div>
+                        <div class="flex gap-2">
+                            <button type="button" onclick="handleGenerate('weekly')" id="btnWeekly" class="bg-slate-900 text-white px-6 py-3 rounded-2xl text-xs font-bold hover:bg-slate-800 transition active:scale-[0.98] shadow-lg disabled:opacity-50">📅 วางแผน 7 วัน</button>
+                            <button type="button" onclick="handleGenerate('instant')" id="btnInstant" class="bg-blue-600 text-white px-6 py-3 rounded-2xl text-xs font-bold hover:bg-blue-700 transition active:scale-[0.98] shadow-lg shadow-blue-100 disabled:opacity-50">⚡ คิดโพสต์ด่วน</button>
+                        </div>
+                    </div>
+
+                    <div class="relative space-y-4">
+                        <textarea id="aiInstruction" 
+                            class="w-full p-6 bg-slate-50 border border-slate-100 rounded-3xl text-sm focus:ring-4 focus:ring-blue-100 focus:border-blue-500 outline-none transition min-h-[120px] placeholder:text-slate-300 leading-relaxed shadow-inner" 
+                            placeholder="ระบุคำสั่งพิเศษหรือข้อมูลโปรโมชั่นวันนี้..."></textarea>
+                        
+                        <div class="flex items-center gap-4 p-2 bg-slate-50/50 rounded-2xl border border-dashed border-slate-200">
+                            <label class="cursor-pointer bg-white border border-slate-200 px-4 py-2.5 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-50 transition flex items-center gap-2 shadow-sm">
+                                <svg class="w-4 h-4 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+                                <span>แนบรูปภาพให้ AI ดู</span>
+                                <input type="file" id="imageInput" class="hidden" accept="image/*" onchange="previewImage(this)">
+                            </label>
+                            <div id="imagePreviewContainer" class="hidden relative animate-fadeIn">
+                                <img id="imagePreview" class="w-14 h-14 object-cover rounded-xl border-2 border-white shadow-md">
+                                <button type="button" onclick="clearImage()" class="absolute -top-2 -right-2 bg-rose-500 text-white rounded-full p-1 shadow-lg hover:bg-rose-600 transition">
+                                    <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                                </button>
+                            </div>
+                            <p id="imageStatusText" class="text-[10px] text-slate-400 font-medium italic">ส่งรูปเมนูใหม่ หรือบรรยากาศร้านเพื่อให้ AI เขียนแคปชันที่แม่นยำขึ้น</p>
+                        </div>
+                    </div>
+
+                    <div id="loadingUI" class="hidden animate-fadeIn mt-4 p-6 bg-blue-50 border border-blue-100 rounded-3xl text-center shadow-inner">
+                        <div class="inline-block w-6 h-6 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mb-2"></div>
+                        <p class="text-blue-700 font-bold text-sm">Gemini กำลังประมวลผลกลยุทธ์คอนเทนต์...</p>
+                    </div>
+                </section>
+
+                <!-- Post Schedule Table -->
+                <section class="bg-white rounded-[2.5rem] shadow-sm border border-slate-100 overflow-hidden">
+                    <div class="p-8 border-b border-slate-50 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-slate-50/30">
+                        <div>
+                            <h2 class="text-xl font-bold text-slate-800 flex items-center gap-2">
+                                <span class="text-emerald-500 text-2xl">📅</span> ตารางการโพสต์
+                            </h2>
+                            <p class="text-xs text-slate-400 font-medium mt-1">จัดการและอนุมัติโพสต์ที่ AI เตรียมไว้ให้คุณ</p>
+                        </div>
+                        <button type="button" onclick="loadPosts()" class="bg-white text-blue-600 px-5 py-2.5 rounded-xl border border-blue-100 text-xs font-bold hover:bg-blue-50 transition shadow-sm flex items-center gap-2">
+                            <span>🔄 รีเฟรชข้อมูล</span>
+                        </button>
+                    </div>
+
+                    <div class="overflow-x-auto custom-scrollbar">
+                        <table class="w-full text-left border-collapse">
+                            <thead class="bg-slate-50/50">
+                                <tr>
+                                    <th class="px-8 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100">วัน / เวลา</th>
+                                    <th class="px-8 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100">เนื้อหาคอนเทนต์</th>
+                                    <th class="px-8 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100">สถานะ</th>
+                                    <th class="px-8 py-4 text-right border-b border-slate-100">จัดการ</th>
+                                </tr>
+                            </thead>
+                            <tbody id="postTable" class="divide-y divide-slate-100 text-sm text-slate-600 font-light"></tbody>
+                        </table>
+                    </div>
+                    
+                    <div id="postEmptyState" class="hidden p-20 text-center animate-fadeIn">
+                        <div class="text-5xl mb-4 grayscale opacity-50">☕</div>
+                        <p class="text-slate-400 text-sm font-medium">ยังไม่มีข้อมูลโพสต์ในฐานข้อมูลของคุณ</p>
+                    </div>
+                </section>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modals -->
+    <div id="gemModal" class="fixed inset-0 bg-slate-900/60 hidden items-center justify-center z-50 p-4 backdrop-blur-sm">
+        <div class="bg-white w-full max-w-2xl rounded-[3rem] shadow-2xl overflow-hidden animate-fadeIn">
+            <div class="p-8 border-b border-slate-50 flex justify-between items-center bg-slate-50/50">
+                <h3 id="modalTitle" class="text-xl font-bold text-slate-800 flex items-center gap-3">
+                    <span class="text-blue-600 text-2xl font-normal">💎</span> Identity Editor
+                </h3>
+                <button type="button" onclick="closeGemModal()" class="bg-white p-2 rounded-full text-slate-300 hover:text-slate-600 shadow-sm border border-slate-100 transition">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                </button>
+            </div>
+            <div class="p-8 space-y-6 max-h-[70vh] overflow-y-auto custom-scrollbar">
+                <div>
+                    <label class="block text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2 ml-1">ชื่อตัวตน (Gem Name)</label>
+                    <input type="text" id="gemNameInput" class="w-full p-4 bg-slate-50 border border-slate-100 rounded-2xl outline-none focus:border-blue-500 font-bold text-slate-700 shadow-inner">
+                </div>
+                <div>
+                    <label class="block text-[10px] font-black text-blue-600 uppercase tracking-[0.2em] mb-2 ml-1">แกนสมอง (Instruction)</label>
+                    <textarea id="gemInstructionInput" class="w-full p-5 bg-slate-50 border border-slate-100 rounded-2xl outline-none focus:border-blue-500 text-sm leading-relaxed min-h-[300px] font-mono shadow-inner text-slate-600"></textarea>
+                </div>
+            </div>
+            <div class="p-8 bg-slate-50/50 border-t border-slate-50 flex justify-end gap-4">
+                <button type="button" onclick="closeGemModal()" class="px-8 py-3 text-slate-400 font-bold text-sm hover:text-slate-600 transition">ยกเลิก</button>
+                <button type="button" id="saveGemBtn" onclick="saveGem()" class="px-10 py-3 bg-slate-900 text-white rounded-2xl font-bold text-sm shadow-xl shadow-slate-200 hover:bg-slate-800 transition active:scale-95">บันทึกตัวตน</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="detailModal" class="fixed inset-0 bg-slate-900/60 hidden items-center justify-center z-[60] p-4 backdrop-blur-md">
+        <div class="bg-white w-full max-w-3xl rounded-[3rem] shadow-2xl overflow-hidden animate-fadeIn border border-white/20">
+            <div class="p-8 border-b border-slate-50 flex justify-between items-center bg-slate-50/30">
+                <h3 class="text-xl font-bold text-slate-800 flex items-center gap-3 text-blue-600">
+                    <span>💡</span> รายละเอียดกลยุทธ์คอนเทนต์
+                </h3>
+                <button type="button" onclick="closeDetailModal()" class="bg-white p-2 rounded-full text-slate-300 hover:text-slate-600 shadow-sm border border-slate-100 transition">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                </button>
+            </div>
+            <div class="p-10 max-h-[70vh] overflow-y-auto custom-scrollbar">
+                <div id="fullContentDisplay" class="text-sm text-slate-700 leading-relaxed whitespace-pre-wrap font-light tracking-wide"></div>
+            </div>
+            <div class="p-8 bg-slate-50/50 border-t border-slate-50 flex justify-center">
+                <button type="button" onclick="closeDetailModal()" class="px-12 py-3 bg-slate-900 text-white rounded-2xl font-bold text-sm shadow-xl hover:bg-slate-800 transition active:scale-95">ปิดหน้าต่างนี้</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let allGems = [];
+        let editingGemId = null;
+        let isConnecting = false;
+        let initialLoadDone = false;
+        let selectedImageBase64 = null;
+        let fbConfig = { pageId: null, isLive: false };
+        
+        const getApiUrl = (path) => (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') ? path : `http://localhost:3000${path}`;
+        const genApi = "/api/generate";
+        const postApi = "/api/posts";
+        const approveApi = "/api/approve";
+
+        // --- Core Functions ---
+        
+        window.onload = async () => {
+            await checkConnection();
+            setInterval(async () => { if (!isConnecting) await checkConnection(); }, 5000);
+        };
+
+        async function checkConnection() {
+            if (isConnecting) return;
+            isConnecting = true;
+            try {
+                // ดึงข้อมูลพื้นฐาน
+                const [gemRes, configRes] = await Promise.all([
+                    fetch(getApiUrl(`${genApi}/gems`)),
+                    fetch(getApiUrl('/api/config'))
+                ]);
+
+                if (gemRes.ok) {
+                    const gems = await gemRes.json();
+                    renderGems(gems);
+                    updateStatus(true);
+                    
+                    if (configRes.ok) {
+                        const config = await configRes.json();
+                        updateFBStatus(config.isConfigured, config.pageId);
+                    } else {
+                        updateFBStatus(false);
+                    }
+
+                    if (!initialLoadDone) { 
+                        await loadPosts(); // เรียกฟังก์ชันโหลดโพสต์จริงๆ
+                        initialLoadDone = true; 
+                    }
+                } else throw Error(`Server returned ${gemRes.status}`);
+            } catch (e) {
+                updateStatus(false, e);
+                updateFBStatus(false);
+                initialLoadDone = false;
+            } finally {
+                isConnecting = false;
+            }
+        }
+
+        function updateStatus(online, error = null) {
+            const dot = document.getElementById('statusDot');
+            const text = document.getElementById('statusText');
+            const warning = document.getElementById('connectionWarning');
+            const debugInfo = document.getElementById('debugError');
+
+            dot.className = `w-2 h-2 rounded-full ${online ? 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]' : 'bg-rose-500 shadow-[0_0_8px_rgba(244,63,94,0.5)]'}`;
+            text.innerText = online ? "SERVER: CONNECTED" : "SERVER: DISCONNECTED";
+            text.className = online ? "uppercase tracking-widest text-emerald-600 font-bold" : "uppercase tracking-widest text-rose-500 font-bold";
+
+            if (online) {
+                warning.classList.add('hidden');
+            } else {
+                warning.classList.remove('hidden');
+                if(debugInfo) {
+                    debugInfo.innerHTML = `Error: ${error ? error.message : 'Connection Failed'}<br>Path: ${getApiUrl('/api/config')}`;
+                }
+            }
+        }
+
+        function updateFBStatus(configured, pageId = null) {
+            const dot = document.getElementById('fbDot');
+            const text = document.getElementById('fbText');
+            const link = document.getElementById('fbPageLink');
+            fbConfig.isLive = configured;
+            fbConfig.pageId = pageId;
+
+            if (configured) {
+                dot.className = "w-2 h-2 rounded-full bg-blue-500 shadow-[0_0_8px_rgba(59,130,246,0.5)]";
+                text.innerText = `FB: READY (${pageId})`;
+                text.className = "uppercase tracking-widest text-blue-600 font-bold";
+                link.href = `https://facebook.com/${pageId}`;
+                link.classList.remove('hidden');
+            } else {
+                dot.className = "w-2 h-2 rounded-full bg-amber-500";
+                text.innerText = "FB: OFFLINE MOCK";
+                text.className = "uppercase tracking-widest text-amber-500 font-bold";
+                link.classList.add('hidden');
+            }
+        }
+
+        function renderGems(gems) {
+            allGems = gems;
+            const list = document.getElementById('gemList');
+            const indicator = document.getElementById('currentGemIndicator');
+            if (allGems.length === 0) {
+                list.innerHTML = '<div class="p-8 text-center text-slate-300 text-xs italic">ยังไม่มีตัวตนในระบบ</div>';
+                indicator.innerText = "กรุณาสร้าง Gem เพื่อเริ่มใช้งาน";
+                return;
+            }
+            list.innerHTML = allGems.map(gem => `
+                <div class="group relative p-5 rounded-[1.5rem] border-2 transition-all duration-300 animate-fadeIn ${gem.is_active ? 'gem-active shadow-xl shadow-blue-50' : 'border-slate-50 hover:border-blue-100 bg-white shadow-sm'}">
+                    <div class="flex justify-between items-start">
+                        <div onclick="activateGem(${gem.id})" class="cursor-pointer flex-1">
+                            <h3 class="font-bold text-sm leading-tight mb-2 ${gem.is_active ? 'text-blue-700' : 'text-slate-700'}">${gem.name}</h3>
+                            <p class="text-[10px] text-slate-400 line-clamp-2 italic leading-relaxed text-xs overflow-hidden">${gem.instruction}</p>
+                        </div>
+                        <div class="flex flex-col gap-2 opacity-0 group-hover:opacity-100 transition duration-300">
+                            <button type="button" onclick="openGemModal(${gem.id})" class="p-2 bg-white rounded-xl shadow-sm border border-slate-100 text-slate-300 hover:text-blue-600"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-5M16.242 19.142l3.757-3.757m-9.515 9.515l3.757-3.757m1.414-1.414l-3.757-3.757"/></svg></button>
+                            <button type="button" onclick="deleteGem(${gem.id})" class="p-2 bg-white rounded-xl shadow-sm border border-slate-100 text-slate-300 hover:text-red-500"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg></button>
+                        </div>
+                    </div>
+                    ${gem.is_active ? '<div class="mt-4 inline-block text-blue-600 font-black text-[9px] bg-blue-100/50 px-2 py-0.5 rounded-full uppercase tracking-tighter shadow-sm border border-blue-100">Active Identity</div>' : ''}
+                </div>`).join('');
+            const active = allGems.find(g => g.is_active);
+            indicator.innerText = active ? `ใช้ตัวตน: ${active.name}` : "กรุณาเลือก Gem เพื่อเริ่มใช้งาน";
+        }
+
+        async function loadPosts() {
+            try {
+                const res = await fetch(getApiUrl(postApi));
+                if (!res.ok) return;
+                const posts = await res.json();
+                renderPosts(posts);
+            } catch (e) { console.error("LoadPosts Error:", e); }
+        }
+
+        function renderPosts(posts) {
+            const container = document.getElementById('postTable');
+            const empty = document.getElementById('postEmptyState');
+            if (!posts || posts.length === 0) { 
+                container.innerHTML = ''; 
+                empty.classList.remove('hidden'); 
+                return; 
+            }
+            empty.classList.add('hidden');
+            window.currentPostsData = posts;
+            container.innerHTML = posts.map((post, index) => {
+                const s = post.status;
+                const sClass = s === 'Draft' ? 'bg-amber-100 text-amber-700 border-amber-200' : s === 'Approved' ? 'bg-emerald-100 text-emerald-700 border-emerald-200' : s === 'Posted' ? 'bg-blue-100 text-blue-700 border-blue-200' : 'bg-slate-100 text-slate-400 border-slate-200';
+                const cleanText = filterCleanCaption(post.content);
+                return `
+                    <tr class="hover:bg-slate-50/50 transition border-b border-slate-50 animate-fadeIn text-xs">
+                        <td class="px-8 py-5">
+                            <div class="font-bold text-slate-700">${new Date(post.scheduled_at).toLocaleDateString('th-TH')}</div>
+                            <div class="text-[10px] text-slate-400 uppercase tracking-tighter">${new Date(post.scheduled_at).toLocaleTimeString('th-TH', {hour:'2-digit', minute:'2-digit'})}</div>
+                        </td>
+                        <td class="px-8 py-5 text-slate-600 max-w-lg leading-relaxed">
+                            ${post.image_data ? `<img src="${post.image_data}" class="w-16 h-16 object-cover rounded-lg mb-2 border border-slate-100 shadow-sm">` : ''}
+                            <div class="relative">
+                                <span class="font-medium text-slate-800">${cleanText.replace(/\n/g, '<br>')}</span>
+                                ${post.content.length > cleanText.length + 10 ? `<button onclick="viewFullDetail(window.currentPostsData[${index}].content)" class="ml-2 text-[10px] font-bold text-blue-500 hover:underline">💡 ดูรายละเอียด</button>` : ''}
+                            </div>
+                        </td>
+                        <td class="px-8 py-5">
+                            <span class="px-3 py-1 rounded-full border text-[9px] font-black uppercase tracking-widest ${sClass} shadow-sm">${s}</span>
+                        </td>
+                        <td class="px-8 py-5 text-right whitespace-nowrap">
+                            <div class="flex justify-end gap-2">
+                                ${s === 'Draft' ? `<button onclick="approvePost(${post.id})" class="bg-emerald-500 text-white px-4 py-1.5 rounded-xl font-bold text-[10px] hover:bg-emerald-600 transition shadow-sm">อนุมัติ</button>` : ''}
+                                ${s === 'Approved' ? `<button onclick="testPostNow(${post.id})" class="bg-blue-600 text-white px-4 py-1.5 rounded-xl font-bold text-[10px] hover:bg-blue-700 transition shadow-sm">โพสต์เลย</button>` : ''}
+                                ${s === 'Posted' ? `<a href="https://facebook.com/${fbConfig.pageId || ''}" target="_blank" class="bg-slate-100 text-slate-500 px-4 py-1.5 rounded-xl font-bold text-[10px] hover:bg-slate-200 transition">เช็คบนเพจ</a>` : ''}
+                                <button onclick="deletePost(${post.id})" class="text-slate-300 hover:text-red-500 transition px-2 py-1"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg></button>
+                            </div>
+                        </td>
+                    </tr>`;
+            }).join('');
+        }
+
+        function filterCleanCaption(content) {
+            if (!content) return "";
+            let filtered = content;
+            const markers = [/แคปชันพร้อมโพสต์/i, /แคปชัน/i, /Caption:?/i];
+            for (const marker of markers) {
+                if (content.match(marker)) {
+                    const parts = content.split(/###|\*\*|เหตุผลและการวางแผน|กลยุทธ์|Rationale/);
+                    for (const part of parts) {
+                        if (part.includes('☕') || part.includes('😊') || part.length > 50) {
+                            filtered = part.replace(marker, '').trim();
+                            break;
+                        }
+                    }
+                    break;
+                }
+            }
+            return filtered.replace(/---/g, '').trim();
+        }
+
+        // --- Event Handlers ---
+
+        function openGemModal(id = null) {
+            editingGemId = id;
+            const modal = document.getElementById('gemModal');
+            if (id) {
+                const gem = allGems.find(g => g.id === id);
+                document.getElementById('gemNameInput').value = gem.name || "";
+                document.getElementById('gemInstructionInput').value = gem.instruction || "";
+                document.getElementById('modalTitle').innerHTML = '<span class="text-blue-600 text-2xl font-normal">💎</span> Edit Identity';
+            } else {
+                document.getElementById('gemNameInput').value = "";
+                document.getElementById('gemInstructionInput').value = "";
+                document.getElementById('modalTitle').innerHTML = '<span class="text-emerald-500 text-2xl font-normal">💎</span> New Identity';
+            }
+            modal.style.display = 'flex';
+        }
+
+        function closeGemModal() { document.getElementById('gemModal').style.display = 'none'; }
+        function viewFullDetail(content) { document.getElementById('fullContentDisplay').innerText = content.replace(/\*\*/g, '').replace(/###/g, ''); document.getElementById('detailModal').classList.remove('hidden'); document.getElementById('detailModal').classList.add('flex'); }
+        function closeDetailModal() { document.getElementById('detailModal').classList.add('hidden'); document.getElementById('detailModal').classList.remove('flex'); }
+
+        async function saveGem() {
+            const name = document.getElementById('gemNameInput').value.trim();
+            const instruction = document.getElementById('gemInstructionInput').value.trim();
+            if (!name || !instruction) return alert('กรุณากรอกข้อมูลให้ครบถ้วน');
+            const saveBtn = document.getElementById('saveGemBtn');
+            saveBtn.disabled = true;
+            try {
+                const url = editingGemId ? getApiUrl(`${genApi}/gems/${editingGemId}`) : getApiUrl(`${genApi}/gems`);
+                const res = await fetch(url, { method: editingGemId ? 'PATCH' : 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name, instruction }) });
+                if (res.ok) { closeGemModal(); await checkConnection(); }
+            } catch (e) { alert('Save Error'); } finally { saveBtn.disabled = false; }
+        }
+
+        async function activateGem(id) { try { await fetch(getApiUrl(`${genApi}/gems/${id}/activate`), { method: 'PATCH' }); await checkConnection(); } catch (e) {} }
+        async function deleteGem(id) { if (!confirm('ยืนยันการลบ?')) return; try { await fetch(getApiUrl(`${genApi}/gems/${id}`), { method: 'DELETE' }); await checkConnection(); } catch (e) {} }
+        async function approvePost(id) { try { await fetch(getApiUrl(`${approveApi}/${id}`), { method: 'PATCH' }); loadPosts(); } catch (e) {} }
+        async function deletePost(id) { if (!confirm('ยืนยันการลบ?')) return; try { await fetch(getApiUrl(`${postApi}/${id}`), { method: 'DELETE' }); loadPosts(); } catch (e) {} }
+
+        async function testPostNow(id) {
+            if (!confirm("คุณต้องการโพสต์เนื้อหานี้ลงเพจ Facebook ทันทีใช่หรือไม่?")) return;
+            try {
+                await fetch(getApiUrl(`${approveApi}/${id}`), { method: 'PATCH' });
+                alert("สั่งการสำเร็จ! ตรวจสอบความคืบหน้าใน Terminal");
+                loadPosts();
+            } catch (e) { alert("Error"); }
+        }
+
+        async function handleGenerate(mode) {
+            const activeGem = allGems.find(g => g.is_active);
+            if (!activeGem) return alert('กรุณาเลือกและเปิดใช้งาน Gem ก่อนเริ่มสร้างงานครับ');
+            const instruction = document.getElementById('aiInstruction').value + "\n\n*** ข้อควรระวัง: ในช่องเนื้อหาคอนเทนต์ (Content) ให้ใส่เฉพาะแคปชันที่จะโพสต์จริงเท่านั้น ห้ามมีตารางหรือบทวิเคราะห์ปนมาเด็ดขาด ***";
+            const loading = document.getElementById('loadingUI');
+            const btnW = document.getElementById('btnWeekly');
+            const btnI = document.getElementById('btnInstant');
+            loading.classList.remove('hidden'); btnW.disabled = true; btnI.disabled = true;
+            try {
+                const endpoint = mode === 'weekly' ? getApiUrl(`${genApi}/weekly`) : getApiUrl(`${genApi}/instant`);
+                const res = await fetch(endpoint, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ instruction, image: selectedImageBase64 })
+                });
+                if (res.ok) {
+                    document.getElementById('aiInstruction').value = "";
+                    clearImage();
+                    alert("AI สร้างกลยุทธ์เรียบร้อย");
+                    loadPosts();
+                } else { alert("AI Failed"); }
+            } catch (e) { alert('Connection Error'); } finally { loading.classList.add('hidden'); btnW.disabled = false; btnI.disabled = false; }
+        }
+
+        function previewImage(input) {
+            const file = input.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    selectedImageBase64 = e.target.result;
+                    document.getElementById('imagePreview').src = selectedImageBase64;
+                    document.getElementById('imagePreviewContainer').classList.remove('hidden');
+                };
+                reader.readAsDataURL(file);
+            }
+        }
+
+        function clearImage() {
+            selectedImageBase64 = null;
+            document.getElementById('imageInput').value = "";
+            document.getElementById('imagePreviewContainer').classList.add('hidden');
+        }
+    </script>
+</body>
+</html>
