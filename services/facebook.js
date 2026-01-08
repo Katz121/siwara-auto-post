@@ -21,6 +21,7 @@ async function postToFacebook(content, imageData = null) {
         let url = `https://graph.facebook.com/v19.0/${pageId}/`;
         let params = { access_token: accessToken };
 
+        let response;
         if (imageData) {
             // กรณีมีรูปภาพ (ต้องส่งไปที่ /photos)
             url += 'photos';
@@ -35,15 +36,27 @@ async function postToFacebook(content, imageData = null) {
             form.append('message', content);
             form.append('access_token', accessToken);
 
-            const response = await axios.post(url, form, { headers: form.getHeaders() });
-            return { success: true, id: response.data.id };
+            response = await axios.post(url, form, { headers: form.getHeaders() });
         } else {
             // กรณีข้อความล้วน
             url += 'feed';
             params.message = content;
-            const response = await axios.post(url, null, { params });
-            return { success: true, id: response.data.id };
+            response = await axios.post(url, null, { params });
         }
+
+        const id = response.data.id || response.data.post_id || null;
+        let permalink = null;
+        if (id) {
+            try {
+                const meta = await axios.get(`https://graph.facebook.com/v19.0/${id}`, { params: { fields: 'permalink_url', access_token: accessToken } });
+                permalink = meta.data.permalink_url || null;
+            } catch (errMeta) {
+                // ไม่จำเป็นต้อง fail ถ้าเรียก meta ไม่ได้
+                console.warn('Could not fetch permalink:', errMeta.message || errMeta);
+            }
+        }
+
+        return { success: true, id, permalink };
     } catch (error) {
         const errorMsg = error.response ? JSON.stringify(error.response.data) : error.message;
         console.error("❌ [Facebook API Error]:", errorMsg);

@@ -1,6 +1,6 @@
 const cron = require('node-cron');
 const Database = require('better-sqlite3');
-const { publishToFacebook } = require('./services/facebook');
+const { postToFacebook } = require('./services/facebook');
 const db = new Database('db.sqlite');
 
 /**
@@ -54,11 +54,13 @@ function initCron() {
                 try {
                     // เรียกใช้ Facebook Service 
                     // (ฟังก์ชันนี้จะทำ Mocking ให้อัตโนมัติหากไม่มี API Credentials)
-                    const success = await publishToFacebook(post);
+                    const result = await postToFacebook(post.content, post.image_data);
                     
-                    if (success) {
+                    if (result && result.success) {
                         db.prepare("UPDATE posts SET status = 'Posted' WHERE id = ?").run(post.id);
                         console.log(`[Cron] [สำเร็จ] โพสต์ ID: ${post.id} ถูกส่งออกและเปลี่ยนสถานะเป็น 'Posted'`);
+                        if (result.id) console.log(`[Cron] Facebook ID: ${result.id}`);
+                        if (result.permalink) console.log(`[Cron] Permalink: ${result.permalink}`);
                     }
                 } catch (error) {
                     console.error(`[Cron] [ผิดพลาด] โพสต์ ID ${post.id}:`, error.message);

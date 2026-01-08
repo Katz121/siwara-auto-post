@@ -38,6 +38,16 @@ function parseAIGeneratedContent(content) {
     return { mainContent: content, strategy: "" };
 }
 
+/**
+ * Extract content between custom markers [[POST]]...[[/POST]]
+ */
+function extractPostFromMarkers(text) {
+    if (typeof text !== 'string') return null;
+    // support [POST] or [[POST]] variants
+    const m = text.match(/\[{1,2}POST\]{1,2}([\s\S]*?)\[{1,2}\/POST\]{1,2}/i);
+    return m ? m[1].trim() : null;
+}
+
 // ==========================================
 // 💎 ระบบจัดการ IDENTITY GEMS (ตัวตน AI)
 // ==========================================
@@ -145,8 +155,10 @@ router.post('/weekly', async (req, res) => {
                 // ใช้ Smart Parser แกะข้อมูลที่ AI เจนออกมา
                 const parsed = parseAIGeneratedContent(p.content);
                 const finalDisplay = parsed.strategy ? `${parsed.mainContent}\n\n💡 กลยุทธ์: ${parsed.strategy}` : parsed.mainContent;
-                
-                insertStmt.run(postDate.toISOString(), finalDisplay, p.type || 'General');
+                // sanitize: remove any [[POST]]...[[/POST]] or [[META]] blocks if present
+                let cleanFinal = finalDisplay.replace(/\[{1,2}POST\]{1,2}([\s\S]*?)\[{1,2}\/POST\]{1,2}/i, '$1');
+                cleanFinal = cleanFinal.replace(/\[{1,2}META\]{1,2}[\s\S]*?\[{1,2}\/META\]{1,2}/i, '').trim();
+                insertStmt.run(postDate.toISOString(), cleanFinal, p.type || 'General');
             }
         });
         transaction(data.posts);
@@ -159,20 +171,33 @@ router.post('/weekly', async (req, res) => {
 
 router.post('/instant', async (req, res) => {
     try {
-        const { instruction, image } = req.body; 
-        
+        let { instruction, image } = req.body;
+
         const activeGem = db.prepare("SELECT * FROM gems WHERE is_active = 1").get();
         if (!activeGem) throw new Error("กรุณาเปิดใช้งาน Gem ก่อน");
 
-        const content = await callGemini(activeGem.instruction, instruction || "ช่วยเขียนแคปชันให้น่าสนใจ", image || null);
-        
-        // ใช้ Smart Parser กับโพสต์ด่วนด้วย
-        const parsed = parseAIGeneratedContent(content);
-        const finalDisplay = parsed.strategy ? `${parsed.mainContent}\n\n💡 กลยุทธ์: ${parsed.strategy}` : parsed.mainContent;
+        // If user provided raw content containing [[POST]] markers, use it directly
+        let content;
+        const extracted = extractPostFromMarkers(instruction || '');
+        if (extracted) {
+            content = extracted;
+        } else {
+            content = await callGemini(activeGem.instruction, instruction || "ช่วยเขียนแคปชันให้น่าสนใจ", image || null, false);
+        }
 
-        db.prepare(`INSERT INTO posts (scheduled_at, content, post_type, image_data, status) VALUES (?, ?, 'Instant', ?, 'Draft')`)
-          .run(new Date().toISOString(), finalDisplay, image || null);
-          
+        // If the AI returned an object (mock/JSON), convert to string
+        const contentStr = typeof content === 'string' ? content : (content.content || JSON.stringify(content));
+
+        // Use Smart Parser with instant posts
+        const parsed = parseAIGeneratedContent(contentStr);
+        const finalDisplay = parsed.strategy ? `${parsed.mainContent}\n\n💡 กลยุทธ์: ${parsed.strategy}` : parsed.mainContent;
+                // sanitize any markers left in finalDisplay
+                let cleanFinal = finalDisplay.replace(/\[{1,2}POST\]{1,2}([\s\S]*?)\[{1,2}\/POST\]{1,2}/i, '$1');
+                cleanFinal = cleanFinal.replace(/\[{1,2}META\]{1,2}[\s\S]*?\[{1,2}\/META\]{1,2}/i, '').trim();
+
+                db.prepare(`INSERT INTO posts (scheduled_at, content, post_type, image_data, status) VALUES (?, ?, 'Instant', ?, 'Draft')`)
+                    .run(new Date().toISOString(), cleanFinal, image || null);
+
         res.json({ success: true });
     } catch (error) {
         console.error("[Generate Instant Error]:", error.message);
