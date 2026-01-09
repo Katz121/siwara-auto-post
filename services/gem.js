@@ -4,6 +4,9 @@ const axios = require('axios');
 const apiKey = process.env.GEMINI_API_KEY;
 const useMockEnv = (process.env.GEMINI_MOCK || '').toLowerCase() === 'true';
 
+/**
+ * ✅ ฟังก์ชันจำลองข้อมูล (Mock) กรณี API มีปัญหา หรืออยู่ในโหมดทดสอบ
+ */
 function generateMock(systemPrompt, userPrompt, expectJson) {
     const base = `${systemPrompt || ''} ${userPrompt || ''}`.trim();
     if (expectJson) {
@@ -13,36 +16,45 @@ function generateMock(systemPrompt, userPrompt, expectJson) {
                     day: 0,
                     time: '10:00',
                     type: 'Warmup',
-                    content: `ตัวอย่างโพสต์: ${base}`
+                    content: `[MOCK JSON] ตัวอย่างโพสต์สำหรับ: ${userPrompt.substring(0, 50)}...`
                 }
             ]
         };
         return JSON.stringify(sample);
     }
-    return `ตัวอย่างแคปชัน: ${base}`;
+    return `[MOCK TEXT] ตัวอย่างแคปชันสำหรับ: ${userPrompt.substring(0, 50)}...`;
 }
 
 /**
- * ฟังก์ชันสำหรับเรียกใช้ Gemini API
+ * ✅ ฟังก์ชันหลักสำหรับเรียกใช้ Gemini API
  */
 async function callGemini(systemPrompt, userPrompt, imageData = null, expectJson = false) {
-    // ถ้าโหมด mock ถูกตั้งค่า ให้คืน mock ทันที
+    // 1. ตรวจสอบโหมด Mock
     if (useMockEnv) {
-        return expectJson ? JSON.parse(generateMock(systemPrompt, userPrompt, true)) : generateMock(systemPrompt, userPrompt, false);
+        console.warn('⚠️ Gemini: กำลังรันในโหมด MOCK (ตามการตั้งค่าใน .env)');
+        const mockData = generateMock(systemPrompt, userPrompt, expectJson);
+        return expectJson ? JSON.parse(mockData) : mockData;
     }
 
-    if (!apiKey) {
-        throw new Error('Missing GEMINI_API_KEY in .env file');
+    // 2. ตรวจสอบ API Key
+    if (!apiKey || apiKey === "") {
+        console.error('❌ Missing GEMINI_API_KEY: โปรดตรวจสอบไฟล์ .env');
+        const mockData = generateMock(systemPrompt, userPrompt, expectJson);
+        return expectJson ? JSON.parse(mockData) : mockData;
     }
 
     const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`;
+    
+    // จัดการ Payload
+    const parts = [{ text: userPrompt }];
+    if (imageData) {
+        // ตัดส่วน prefix base64 ออกถ้ามี
+        const base64Data = imageData.includes('base64,') ? imageData.split('base64,')[1] : imageData;
+        parts.push({ inlineData: { mimeType: 'image/png', data: base64Data } });
+    }
+
     const payload = {
-        contents: [{
-            parts: [
-                { text: userPrompt },
-                ...(imageData ? [{ inlineData: { mimeType: 'image/png', data: imageData.split(',')[1] || imageData } }] : [])
-            ]
-        }],
+        contents: [{ role: "user", parts: parts }],
         systemInstruction: { parts: [{ text: systemPrompt }] },
         generationConfig: {
             responseMimeType: expectJson ? 'application/json' : 'text/plain'
@@ -51,58 +63,44 @@ async function callGemini(systemPrompt, userPrompt, imageData = null, expectJson
 
     let retries = 0;
     let triedWithoutImage = false;
+
+    // 3. เริ่มกระบวนการเรียก API พร้อมระบบ Retry (Exponential Backoff)
     while (retries < 5) {
         try {
             const response = await axios.post(url, payload);
-            // Some responses include multiple parts; join all text parts safely
-            const parts = response.data.candidates?.[0]?.content?.parts || [];
-            const textParts = parts.filter(p => typeof p.text === 'string').map(p => p.text);
-            const resultText = textParts.join('\n').trim() || (parts[0] && parts[0].text) || '';
+            const resultText = response.data.candidates?.[0]?.content?.parts?.[0]?.text || '';
 
             if (expectJson) {
                 try {
                     return typeof resultText === 'string' ? JSON.parse(resultText) : resultText;
                 } catch (e) {
-                    console.warn('Failed to parse JSON from Gemini response, returning raw text');
-                    return resultText;
+                    console.error('Gemini returned invalid JSON, retrying or falling back');
+                    throw new Error('Invalid JSON format from AI');
                 }
             }
+            return resultText;
 
-            // Always return a predictable structure when imageData was provided
-            return imageData ? { content: resultText } : resultText;
         } catch (error) {
-            console.warn('Gemini call failed:', error.response?.data?.error || error.message || error);
+            const errorData = error.response?.data?.error || {};
+            const message = errorData.message || error.message;
+            console.warn(`⚠️ Gemini API Error (Retry ${retries + 1}/5):`, message);
 
-            // If we sent an image, try once more without the image (some models or network paths fail on inline images)
+            // กรณีส่งรูปแล้วพัง ให้ลองส่งแค่ข้อความอย่างเดียวในรอบถัดไป
             if (imageData && !triedWithoutImage) {
+                console.log('🔄 ลองใหม่แบบไม่มีรูปภาพ (Fallback to text-only)...');
+                payload.contents[0].parts = payload.contents[0].parts.filter(p => !p.inlineData);
                 triedWithoutImage = true;
-                try {
-                    console.warn('Retrying Gemini call without image payload as a fallback');
-                    // build payload without inlineData
-                    const payloadNoImage = JSON.parse(JSON.stringify(payload));
-                    if (payloadNoImage.contents && payloadNoImage.contents[0] && Array.isArray(payloadNoImage.contents[0].parts)) {
-                        payloadNoImage.contents[0].parts = payloadNoImage.contents[0].parts.filter(p => !p.inlineData);
-                    }
-                    const response2 = await axios.post(url, payloadNoImage);
-                    const parts2 = response2.data.candidates?.[0]?.content?.parts || [];
-                    const textParts2 = parts2.filter(p => typeof p.text === 'string').map(p => p.text);
-                    const resultText2 = textParts2.join('\n').trim() || (parts2[0] && parts2[0].text) || '';
-                    if (expectJson) {
-                        try { return typeof resultText2 === 'string' ? JSON.parse(resultText2) : resultText2; } catch (e) { return resultText2; }
-                    }
-                    return imageData ? { content: resultText2 } : resultText2;
-                } catch (err2) {
-                    console.warn('Retry without image also failed:', err2.response?.data || err2.message || err2);
-                    // fall through to retry logic
-                }
+                continue; // ลองใหม่ทันทีโดยไม่เพิ่มรอบ retry
             }
 
             retries++;
             if (retries === 5) {
-                console.error('Gemini API Max Retries Reached:', error.response?.data || error.message);
-                console.warn('Using local mock fallback for Gemini');
-                return expectJson ? JSON.parse(generateMock(systemPrompt, userPrompt, true)) : generateMock(systemPrompt, userPrompt, false);
+                console.error('❌ Gemini API ล้มเหลวครบ 5 ครั้ง: กำลังใช้ข้อมูลจำลอง (Mock Fallback)');
+                const mockData = generateMock(systemPrompt, userPrompt, expectJson);
+                return expectJson ? JSON.parse(mockData) : mockData;
             }
+
+            // Exponential Backoff: 1s, 2s, 4s, 8s, 16s
             const delay = Math.pow(2, retries) * 1000;
             await new Promise(resolve => setTimeout(resolve, delay));
         }

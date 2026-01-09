@@ -33,7 +33,8 @@
 
                     <div class="mt-4 flex flex-wrap gap-2">
                         <button onclick="window.location.reload()" class="bg-amber-600 text-white px-4 py-2 rounded-xl text-xs font-bold hover:bg-amber-700 transition">Refresh หน้าจอ</button>
-                        <a href="http://localhost:3000" target="_blank" class="bg-slate-200 text-slate-700 px-4 py-2 rounded-xl text-xs font-bold hover:bg-slate-300 transition">ตรวจสอบ http://localhost:3000</a>
+                        <!-- ✅ ปรับลิงก์ให้แสดงตาม IP ที่เข้าใช้งานจริง -->
+                        <a id="currentServerLink" href="#" target="_blank" class="bg-slate-200 text-slate-700 px-4 py-2 rounded-xl text-xs font-bold hover:bg-slate-300 transition">ตรวจสอบเซิร์ฟเวอร์</a>
                     </div>
                 </div>
             </div>
@@ -251,12 +252,14 @@
         let editingPostId = null;
         let fbConfig = { pageId: null, isLive: false };
         
+        /**
+         * ✅ การตั้งค่า API URL แบบไดนามิก (รองรับเลข IP ภายในบ้าน)
+         * ระบบจะตรวจจับ Origin (Domain/IP + Port) ที่คุณกำลังเปิดอยู่โดยอัตโนมัติ
+         */
         const getApiUrl = (path) => {
-            const baseUrl = 'http://localhost:3000';
-            if (window.location.origin.includes(':3000')) {
-                return path;
-            }
-            return `${baseUrl}${path}`;
+            // ดึง Origin ปัจจุบัน (เช่น http://localhost:3000 หรือ http://192.168.1.35:3000)
+            const origin = window.location.origin;
+            return `${origin}${path}`;
         };
 
         const genApi = "/api/generate";
@@ -265,6 +268,10 @@
         const publishApi = "/api/publish";
 
         window.onload = async () => {
+            // อัปเดตลิงก์ช่วยเหลือในกรณีเชื่อมต่อไม่ได้ให้ตรงกับ IP ปัจจุบัน
+            const serverLink = document.getElementById('currentServerLink');
+            if (serverLink) serverLink.href = window.location.origin;
+
             await checkConnection();
             setInterval(async () => { if (!isConnecting) await checkConnection(); }, 5000);
         };
@@ -305,7 +312,7 @@
                 warning.classList.add('hidden');
             } else {
                 warning.classList.remove('hidden');
-                if(debugInfo) debugInfo.innerHTML = `Error: ${error ? error.message : 'Connection Failed'}`;
+                if(debugInfo) debugInfo.innerHTML = `Origin: ${window.location.origin}<br>Error: ${error ? error.message : 'Connection Failed'}`;
             }
         }
 
@@ -383,7 +390,6 @@
                         <td class="px-8 py-5 text-slate-600 max-w-lg leading-relaxed text-left">
                             ${post.image_data ? `<img src="${post.image_data}" class="w-16 h-16 object-cover rounded-lg mb-2 shadow-sm border border-slate-200">` : ''}
                             <div class="group relative">
-                                <!-- ✅ แก้ไข: เปลี่ยนมาใช้การส่ง ID แทนการส่งเนื้อหาตรงๆ เพื่อป้องกันปัญหาอักขระพิเศษ -->
                                 <p class="line-clamp-3 font-medium text-slate-800 cursor-pointer hover:text-blue-600 transition" onclick="viewFullDetailByID(${post.id})">
                                     ${cleanText.replace(/\n/g, '<br>')}
                                 </p>
@@ -403,17 +409,13 @@
             }).join('');
         }
 
-        // ✅ ฟังก์ชันแสดงรายละเอียดเนื้อหาฉบับเต็มโดยใช้ ID ในการค้นหา
         function viewFullDetailByID(id) {
             if (!window.currentPostsData) return;
             const post = window.currentPostsData.find(p => p.id === id);
             if (!post) return;
-
             const display = document.getElementById('fullContentDisplay');
-            // ทำความสะอาดข้อความเล็กน้อย (เช่น ลบ Markdown symbols)
             const cleanContent = post.content.replace(/\*\*/g, '').replace(/###/g, '');
             display.innerText = cleanContent;
-            
             const modal = document.getElementById('detailModal');
             modal.classList.remove('hidden');
             modal.classList.add('flex');
@@ -500,7 +502,6 @@
             document.getElementById('postEditModal').classList.remove('flex');
         }
 
-        // --- Gem Management Functions ---
         function openGemModal() { 
             editingGemId = null;
             document.getElementById('modalTitle').innerHTML = '<span class="text-blue-600 text-2xl font-normal">💎</span> Identity Editor (เพิ่มใหม่)';
