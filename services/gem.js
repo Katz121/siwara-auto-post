@@ -1,4 +1,4 @@
-const axios = require('axios');
+﻿const axios = require('axios');
 
 // อ่านค่า .env
 const apiKey = process.env.GEMINI_API_KEY;

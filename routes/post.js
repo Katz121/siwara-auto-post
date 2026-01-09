@@ -1,4 +1,4 @@
-const express = require('express');
+﻿const express = require('express');
 const router = express.Router();
 const Database = require('better-sqlite3');
 const db = new Database('db.sqlite');
@@ -6,7 +6,7 @@ const db = new Database('db.sqlite');
 // ดึงโพสต์ทั้งหมด
 router.get('/', (req, res) => {
     try {
-        const posts = db.prepare("SELECT * FROM posts ORDER BY scheduled_at DESC").all();
+        const posts = db.prepare("SELECT * FROM posts ORDER BY scheduled_at ASC").all();
         res.json(posts);
     } catch (err) {
         res.status(500).json({ error: err.message });

@@ -1,4 +1,4 @@
-const cron = require('node-cron');
+﻿const cron = require('node-cron');
 const Database = require('better-sqlite3');
 const { postToFacebook } = require('./services/facebook');
 const db = new Database('db.sqlite');
@@ -8,29 +8,29 @@ const db = new Database('db.sqlite');
  */
 function initCron() {
     console.log("\n=========================================");
-    console.log("[Cron] ระบบกำลังเริ่มตรวจสอบค่าคอนฟิก...");
+    console.log("[Cron] Initializing scheduled post checks...");
     
     // ดึงค่าจาก environment variables
     const pageId = process.env.FB_PAGE_ID;
     const accessToken = process.env.FB_PAGE_ACCESS_TOKEN;
     const geminiKey = process.env.GEMINI_API_KEY;
 
-    // ตรวจสอบความพร้อมและแสดงผลเพื่อการตรวจสอบ (Debug)
+    // Check config readiness (debug)
     const hasPageId = !!(pageId && pageId.trim());
     const hasToken = !!(accessToken && accessToken.trim());
     const hasGemini = !!(geminiKey && geminiKey.trim());
 
-    console.log(`[Debug] FB_PAGE_ID: ${hasPageId ? '✅ พบข้อมูล' : '❌ ว่างเปล่า'}`);
-    console.log(`[Debug] FB_PAGE_ACCESS_TOKEN: ${hasToken ? '✅ พบข้อมูล' : '❌ ว่างเปล่า'}`);
-    console.log(`[Debug] GEMINI_API_KEY: ${hasGemini ? '✅ พบข้อมูล' : '❌ ว่างเปล่า'}`);
+    console.log(`[Debug] FB_PAGE_ID: ${hasPageId ? 'OK' : 'MISSING'}`);
+    console.log(`[Debug] FB_PAGE_ACCESS_TOKEN: ${hasToken ? 'OK' : 'MISSING'}`);
+    console.log(`[Debug] GEMINI_API_KEY: ${hasGemini ? 'OK' : 'MISSING'}`);
 
     if (hasPageId && hasToken) {
-        console.log("\n[Cron] ✅ สถานะ: LIVE MODE (พร้อมเชื่อมต่อ Facebook)");
+        console.log("\n[Cron] Status: LIVE MODE (Facebook enabled)");
         console.log(`[Cron] Target Page ID: ${pageId}`);
     } else {
-        console.log("\n[Cron] ⚠️ สถานะ: OFFLINE MOCK MODE");
-        console.log("[Cron] คำแนะนำ: หากคุณใส่ค่าใน .env แล้วแต่ยังขึ้น Error นี้ ให้ลองปิดและเปิด Terminal ใหม่");
-        console.log("[Cron] ระบบจะทำการ Log ข้อความลง Console แทนการโพสต์จริงเพื่อความปลอดภัย");
+        console.log("\n[Cron] Status: OFFLINE MOCK MODE");
+        console.log("[Cron] Tip: If you just updated .env, restart the terminal/server.");
+        console.log("[Cron] Posts will be logged to console instead of sent to Facebook.");
     }
     console.log("=========================================\n");
     
@@ -42,12 +42,12 @@ function initCron() {
             // ค้นหาโพสต์ที่ได้รับการอนุมัติ (Approved) และถึงเวลาโพสต์แล้ว
             const pendingPosts = db.prepare(`
                 SELECT * FROM posts 
-                WHERE status = 'Approved' 
+                WHERE status = 'Scheduled' 
                 AND scheduled_at <= ?
             `).all(now);
 
             if (pendingPosts.length > 0) {
-                console.log(`[Cron] [${new Date().toLocaleTimeString()}] ตรวจพบ ${pendingPosts.length} รายการที่ต้องโพสต์...`);
+                console.log(`[Cron] [${new Date().toLocaleTimeString()}] Found ${pendingPosts.length} scheduled posts to send...`);
             }
 
             for (const post of pendingPosts) {
@@ -58,16 +58,16 @@ function initCron() {
                     
                     if (result && result.success) {
                         db.prepare("UPDATE posts SET status = 'Posted' WHERE id = ?").run(post.id);
-                        console.log(`[Cron] [สำเร็จ] โพสต์ ID: ${post.id} ถูกส่งออกและเปลี่ยนสถานะเป็น 'Posted'`);
+                        console.log(`[Cron] [OK] Post ID: ${post.id} sent and marked as 'Posted'`);
                         if (result.id) console.log(`[Cron] Facebook ID: ${result.id}`);
                         if (result.permalink) console.log(`[Cron] Permalink: ${result.permalink}`);
                     }
                 } catch (error) {
-                    console.error(`[Cron] [ผิดพลาด] โพสต์ ID ${post.id}:`, error.message);
+                    console.error(`[Cron] [ERROR] Post ID ${post.id}:`, error.message);
                 }
             }
         } catch (error) {
-            console.error("[Cron] [วิกฤต] ระบบตรวจสอบฐานข้อมูลผิดพลาด:", error.message);
+            console.error("[Cron] [CRITICAL] Database check failed:", error.message);
         }
     });
 }

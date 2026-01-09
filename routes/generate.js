@@ -1,4 +1,4 @@
-const express = require('express');
+﻿const express = require('express');
 const router = express.Router();
 const { callGemini } = require('../services/gem'); // ✅ แก้ไขให้ตรงกับชื่อไฟล์ services/gem.js ของพี่ชายแล้วครับ
 const Database = require('better-sqlite3');

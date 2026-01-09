@@ -1,4 +1,4 @@
-const BLACKLIST = ["เหล้า", "เบียร์", "บุหรี่", "พนัน"];
+﻿const BLACKLIST = ["เหล้า", "เบียร์", "บุหรี่", "พนัน"];
 
 function validateContent(content) {
     const foundWords = BLACKLIST.filter(word => content.includes(word));

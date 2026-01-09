@@ -1,9 +1,11 @@
-const express = require('express');
+﻿const express = require('express');
 const path = require('path');
 const Database = require('better-sqlite3');
 const cors = require('cors');
 const axios = require('axios');
 const FormData = require('form-data');
+const { initCron } = require('./cron');
+const { postToFacebook } = require('./services/facebook');
 require('dotenv').config();
 
 const app = express();
@@ -59,14 +61,8 @@ app.get('/api/config', (req, res) => {
 });
 
 // API สำหรับดึงรายการโพสต์
-app.get('/api/posts', (req, res) => {
-    try {
-        const posts = db.prepare('SELECT * FROM posts ORDER BY scheduled_at ASC').all();
-        res.json(posts);
-    } catch (e) {
-        res.status(500).json({ error: e.message });
-    }
-});
+const postRoutes = require('./routes/post');
+app.use('/api/posts', postRoutes);
 
 // ✅ API สำหรับอนุมัติและตั้งเวลาโพสต์
 app.patch('/api/approve/:id', async (req, res) => {
@@ -76,13 +72,13 @@ app.patch('/api/approve/:id', async (req, res) => {
         const lockResult = db.prepare("UPDATE posts SET status = 'Processing' WHERE id = ? AND status = 'Draft'").run(postId);
         
         if (lockResult.changes === 0) {
-            return res.status(409).json({ error: "โพสต์นี้กำลังดำเนินการ หรือถูกอนุมัติไปแล้ว" });
+            return res.status(409).json({ error: "Post is already processing or not in Draft state." });
         }
 
         const post = db.prepare('SELECT * FROM posts WHERE id = ?').get(postId);
         if (!post) {
             db.prepare("UPDATE posts SET status = 'Draft' WHERE id = ?").run(postId);
-            return res.status(404).json({ error: "ไม่พบโพสต์" });
+            return res.status(404).json({ error: "Post not found." });
         }
 
         const pageId = process.env.FB_PAGE_ID;
@@ -122,7 +118,7 @@ app.patch('/api/approve/:id', async (req, res) => {
         }
 
         db.prepare("UPDATE posts SET status = 'Scheduled' WHERE id = ?").run(postId);
-        res.json({ success: true, message: "อนุมัติและตั้งเวลาสำเร็จ" });
+        res.json({ success: true, message: "Post scheduled successfully." });
 
     } catch (error) {
         db.prepare("UPDATE posts SET status = 'Draft' WHERE id = ?").run(postId);
@@ -133,18 +129,41 @@ app.patch('/api/approve/:id', async (req, res) => {
 });
 
 // API สำหรับลบโพสต์
-app.delete('/api/posts/:id', (req, res) => {
-    db.prepare('DELETE FROM posts WHERE id = ?').run(req.params.id);
-    res.json({ success: true });
+// API: publish immediately
+app.post('/api/publish/:id', async (req, res) => {
+    const postId = req.params.id;
+    let originalStatus = null;
+
+    try {
+        const post = db.prepare('SELECT * FROM posts WHERE id = ?').get(postId);
+        if (!post) {
+            return res.status(404).json({ error: "Post not found." });
+        }
+
+        if (!['Approved', 'Scheduled'].includes(post.status)) {
+            return res.status(409).json({ error: "Post is not in Approved/Scheduled state." });
+        }
+
+        originalStatus = post.status;
+        db.prepare("UPDATE posts SET status = 'Processing' WHERE id = ?").run(postId);
+        const result = await postToFacebook(post.content, post.image_data);
+        db.prepare("UPDATE posts SET status = 'Posted' WHERE id = ?").run(postId);
+
+        res.json({ success: true, result });
+    } catch (error) {
+        db.prepare("UPDATE posts SET status = ? WHERE id = ?").run(originalStatus || 'Approved', postId);
+        res.status(500).json({ error: error.message });
+    }
 });
+
 
 // ✅ แก้ไขการโหลด Routes ให้แสดง Error ที่ชัดเจน
 try {
     const generateRoutes = require('./routes/generate');
     app.use('/api/generate', generateRoutes);
 } catch (e) {
-    console.error("❌ CRITICAL ERROR: ไม่สามารถโหลดไฟล์ routes/generate.js ได้!");
-    console.error("สาเหตุ:", e.stack); 
+    console.error("[CRITICAL] Failed to load routes/generate.js");
+    console.error("Error stack:", e.stack);
 }
 
 // ✅ ส่วนที่แก้ไขเพื่อเปิดให้เข้าผ่าน IP ได้
@@ -171,3 +190,5 @@ app.listen(PORT, HOST, () => {
     console.log(`🏠 Network: http://${localIp}:${PORT}`); // แสดงเลข IP จริงที่ใช้เข้าผ่านมือถือได้
     console.log(`==============================================\n`);
 });
+
+initCron();
